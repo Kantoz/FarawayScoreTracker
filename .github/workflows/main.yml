@@ -16,8 +16,8 @@ jobs:
 
     env:
       DOTNET_VERSION: "8.0.x"
-      IMAGE_NAME: scoretracker            # optional: anpassen
-      DOCKERFILE_PATH: ./Dockerfile       # im Repo-Root vorhanden
+      IMAGE_NAME: scoretracker
+      DOCKERFILE_PATH: ./Dockerfile
       CONTEXT_PATH: ./
 
     steps:
@@ -38,13 +38,13 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore ./ScoreTracker.sln
+        run: dotnet restore ./Faraway.ScoreTracker.sln
 
       - name: Build (Release)
-        run: dotnet build ./ScoreTracker.sln -c Release --no-restore
+        run: dotnet build ./Faraway.ScoreTracker.sln -c Release --no-restore
 
       - name: Test
-        run: dotnet test ./tests/ScoreTracker.Tests/ScoreTracker.Tests.csproj -c Release --no-build --logger "trx;LogFileName=testresults.trx"
+        run: dotnet test ./tests/Faraway.ScoreTracker.Tests/Faraway.ScoreTracker.Tests.csproj -c Release --no-build --logger "trx;LogFileName=testresults.trx"
 
       - name: Upload test results
         if: always()
@@ -61,11 +61,14 @@ jobs:
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           DATE=$(date -u +%Y%m%d)
-          echo "tags=${{ env.IMAGE_NAME }}:${DATE}-${SHORT_SHA},${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
+          FIRST_TAG="${{ env.IMAGE_NAME }}:${DATE}-${SHORT_SHA}"
+          ALL_TAGS="${FIRST_TAG},${{ env.IMAGE_NAME }}:${SHORT_SHA}"
+          echo "first_tag=$FIRST_TAG" >> "$GITHUB_OUTPUT"
+          echo "tags=$ALL_TAGS" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker image (no push)
         run: |
           docker build \
             --file "${{ env.DOCKERFILE_PATH }}" \
-            --tag ${{ steps.tags.outputs.tags%%,* }} \
+            --tag "${{ steps.tags.outputs.first_tag }}" \
             "${{ env.CONTEXT_PATH }}"
