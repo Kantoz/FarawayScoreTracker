@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Data Source=/app/data/scoretracker.db"
+    ports:
+      - "8080:8080"
+    volumes:
+      - scoretracker_db:/app/data
+    restart: unless-stopped
+
+volumes:
+  scoretracker_db:

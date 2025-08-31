@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AssemblyName>Faraway.ScoreTracker.Api</AssemblyName>
+        <RootNamespace>Faraway.ScoreTracker.Api</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Faraway.ScoreTracker.Core\Faraway.ScoreTracker.Core.csproj" />
+        <ProjectReference Include="..\Faraway.ScoreTracker.Infrastructure\Faraway.ScoreTracker.Infrastructure.csproj" />
+        <ProjectReference Include="..\Faraway.ScoreTracker.Contracts\Faraway.ScoreTracker.Contracts.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.19" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
+    </ItemGroup>
+    <ItemGroup>
+        <Folder Include="Data\" />
+        <Folder Include="Endpoints\Region\" />
+    </ItemGroup>
+</Project>

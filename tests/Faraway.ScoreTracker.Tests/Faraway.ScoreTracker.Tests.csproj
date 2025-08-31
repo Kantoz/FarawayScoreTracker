@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <IsTestProject>true</IsTestProject>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AssemblyName>Faraway.ScoreTracker.Tests</AssemblyName>
+        <RootNamespace>Faraway.ScoreTracker.Tests</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- ASSERTIONS -->
+        <PackageReference Include="FluentAssertions" Version="8.6.0" />
+
+        <!-- ASP.NET test host / WebApplicationFactory -->
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.10" />
+
+        <!-- EF Core + Provider + ADO -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.10" />
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+
+        <!-- xUnit + Test SDK -->
+        <PackageReference Include="xunit" Version="2.9.0" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Faraway.ScoreTracker.Api\Faraway.ScoreTracker.Api.csproj" />
+        <ProjectReference Include="..\..\src\Faraway.ScoreTracker.Infrastructure\Faraway.ScoreTracker.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\src\Faraway.ScoreTracker.Core\Faraway.ScoreTracker.Core.csproj" />
+        <ProjectReference Include="..\..\src\Faraway.ScoreTracker.Contracts\Faraway.ScoreTracker.Contracts.csproj" />
+    </ItemGroup>
+
+</Project>
