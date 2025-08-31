@@ -62,15 +62,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// --- DB sicher migrieren (optional Logging) ---
 using (IServiceScope scope = app.Services.CreateScope())
 {
     ScoreTrackerDbContext db = scope.ServiceProvider.GetRequiredService<ScoreTrackerDbContext>();
-    db.Database.Migrate();
+    await db.Database.MigrateAsync();
 }
 
 app.MapPlayers();
 app.MapGames();
 app.MapHealth();
 
-app.Run();
+await app.RunAsync();

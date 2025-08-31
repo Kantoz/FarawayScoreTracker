@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using Faraway.ScoreTracker.Api.Endpoints.Players;
 using Faraway.ScoreTracker.Contracts.Responses;
 using Faraway.ScoreTracker.Infrastructure.Persistence;
 using Faraway.ScoreTracker.Infrastructure.Persistence.Models;
@@ -38,8 +39,8 @@ public class PlayersEndpointsTests
     public async Task GetAll_returns_empty_when_no_players()
     {
         await using var _ = (await NewAppAsync()).factory;
-        var client = (await NewAppAsync()).client; // oder in einer Zeile (s. weitere Tests)
-        var resp = await client.GetAsync("/api/player/");
+        HttpClient client = (await NewAppAsync()).client;
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var list = await resp.Content.ReadFromJsonAsync<List<PlayerResponse>>();
@@ -69,7 +70,7 @@ public class PlayersEndpointsTests
             await db.SaveChangesAsync();
         }
 
-        HttpResponseMessage resp = await client.GetAsync("/api/player/");
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/");
         resp.EnsureSuccessStatusCode();
 
         List<PlayerResponse>? list = await resp.Content.ReadFromJsonAsync<List<PlayerResponse>>();
@@ -101,7 +102,7 @@ public class PlayersEndpointsTests
         });
         await using TestWebApplicationFactory _ = factory;
 
-        HttpResponseMessage resp = await client.GetAsync($"/api/player/{playerId}");
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/{playerId}");
         string body = await resp.Content.ReadAsStringAsync();
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -121,7 +122,7 @@ public class PlayersEndpointsTests
         await using var _ = ctx.factory;
         var client = ctx.client;
 
-        var resp = await client.GetAsync($"/api/player/{Guid.NewGuid()}");
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -134,10 +135,9 @@ public class PlayersEndpointsTests
         await using var _ = ctx.factory;
         var client = ctx.client;
 
-        var resp = await client.DeleteAsync($"/api/player/{id}");
+        HttpResponseMessage resp = await client.DeleteAsync($"{PlayersEndpoints.PrefixApiRoute}/{id}");
         resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        // Kontrollblick in die DB dieser Factory
         using var scope = ctx.factory.Services.CreateScope();
         var db2 = scope.ServiceProvider.GetRequiredService<ScoreTrackerDbContext>();
         (await db2.Players.FindAsync(id)).Should().BeNull();
@@ -150,7 +150,7 @@ public class PlayersEndpointsTests
         await using var _ = ctx.factory;
         var client = ctx.client;
 
-        var resp = await client.DeleteAsync($"/api/player/{Guid.NewGuid()}");
+        HttpResponseMessage resp = await client.DeleteAsync($"{PlayersEndpoints.PrefixApiRoute}/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
@@ -176,7 +176,7 @@ public class PlayersEndpointsTests
         });
         await using var _ = factory;
 
-        HttpResponseMessage resp = await client.GetAsync($"/api/player/{playerId}/score");
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/{playerId}/score");
         string body = await resp.Content.ReadAsStringAsync();
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -195,7 +195,7 @@ public class PlayersEndpointsTests
         await using var _ = ctx.factory;
         var client = ctx.client;
 
-        var resp = await client.GetAsync($"/api/player/{Guid.NewGuid()}/score");
+        HttpResponseMessage resp = await client.GetAsync($"{PlayersEndpoints.PrefixApiRoute}/{Guid.NewGuid()}/score");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -10,7 +10,7 @@ namespace Faraway.ScoreTracker.Api.Endpoints.Players;
 
 public static class PlayersEndpoints
 {
-    private static readonly string PrefixApiRoute = "/api/player";
+    public static readonly string PrefixApiRoute = "/api/player";
 
     public static IEndpointRouteBuilder MapPlayers(this IEndpointRouteBuilder app)
     {

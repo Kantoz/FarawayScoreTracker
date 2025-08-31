@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Faraway.ScoreTracker.Api.Endpoints.Game;
 using Faraway.ScoreTracker.Contracts.Errors;
 using Faraway.ScoreTracker.Contracts.Requests;
 using Faraway.ScoreTracker.Contracts.Responses;
@@ -24,6 +25,7 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
     private static readonly JsonSerializerOptions ReadJson = new() { PropertyNameCaseInsensitive = true, };
+    private const int MaxAmount = 8;
 
     public async Task InitializeAsync()
     {
@@ -43,14 +45,15 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         string playerName = "Alice";
         GameRequest req = TestFixtures.SimpleGame(playerName);
 
-        HttpResponseMessage resp = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage resp =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         string body = await resp.Content.ReadAsStringAsync();
 
         resp.StatusCode.Should().Be(HttpStatusCode.Created, $"Body:\n{body}");
 
         GameResponse? created = await resp.Content.ReadFromJsonAsync<GameResponse>(JsonHelpers.ReadStringEnums);
         created.Should().NotBeNull();
-        created!.Players.Should().HaveCount(1);
+        created.Players.Should().HaveCount(1);
         created.Players.First().Name.Should().Be(playerName);
     }
 
@@ -59,7 +62,8 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
     {
         GameRequest bad = TestFixtures.NoPlayers();
 
-        HttpResponseMessage resp = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(bad));
+        HttpResponseMessage resp =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(bad));
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         ErrorResponse? err = await resp.Content.ReadFromJsonAsync<ErrorResponse>(ReadJson);
@@ -74,13 +78,14 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
             Players:
             [
                 new PlayerRequest(
-                    Name: "",
+                    string.Empty,
                     Regions: [],
                     Shrines: []
                 ),
             ]);
 
-        HttpResponseMessage resp = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(bad));
+        HttpResponseMessage resp =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(bad));
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         ErrorResponse? err = await resp.Content.ReadFromJsonAsync<ErrorResponse>(ReadJson);
@@ -93,7 +98,8 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         string playerName = "Max";
         GameRequest req = TestFixtures.GameWith8Regions(playerName);
 
-        HttpResponseMessage resp = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage resp =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         string body = await resp.Content.ReadAsStringAsync();
 
         resp.StatusCode.Should().Be(HttpStatusCode.Created, $"Body:\n{body}");
@@ -101,16 +107,17 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         GameResponse? created = await resp.Content.ReadFromJsonAsync<GameResponse>(JsonHelpers.ReadStringEnums);
         created.Should().NotBeNull();
 
-        PlayerResponse p = created!.Players.First();
-        p.Regions.Should().HaveCount(8);
+        PlayerResponse p = created.Players.First();
+
+        p.Regions.Should().HaveCount(MaxAmount);
         IEnumerable<int> positions = p.Regions.Select(r => r.Position);
-        positions.Should().BeEquivalentTo(Enumerable.Range(1, 8));
+        positions.Should().BeEquivalentTo(Enumerable.Range(1, MaxAmount));
     }
 
     [Fact]
     public async Task CreateGame_with_9_regions_returns_400()
     {
-        List<RegionRequest> nineRegions = Enumerable.Range(1, 9).Select(i =>
+        List<RegionRequest> nineRegions = Enumerable.Range(1, MaxAmount + 1).Select(i =>
             new RegionRequest(
                 Number: i,
                 TimeValue.Tag,
@@ -129,7 +136,8 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         PlayerRequest player = new("Overloaded", nineRegions, []);
         GameRequest req = new(null, [player,]);
 
-        HttpResponseMessage resp = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage resp =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -139,15 +147,16 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         string playerName = "Alice";
         GameRequest req = TestFixtures.SimpleGame(playerName);
 
-        HttpResponseMessage create = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage create =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         create.EnsureSuccessStatusCode();
 
-        HttpResponseMessage resp = await _client.GetAsync("/api/game/");
+        HttpResponseMessage resp = await _client.GetAsync($"{GameEndpoint.PrefixApiRoute}/");
         resp.EnsureSuccessStatusCode();
 
         List<GameResponse>? games = await resp.Content.ReadFromJsonAsync<List<GameResponse>>(JsonHelpers.ReadStringEnums);
         games.Should().NotBeNull();
-        games!.Any(g => g.Players.Any(p => p.Name == playerName)).Should().BeTrue();
+        games.Any(g => g.Players.Any(p => p.Name == playerName)).Should().BeTrue();
     }
 
     [Fact]
@@ -160,18 +169,19 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
             TestFixtures.SimpleGame(playerBob).Players.First(),
         ]);
 
-        HttpResponseMessage create = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage create =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         create.EnsureSuccessStatusCode();
         GameResponse? created = await create.Content.ReadFromJsonAsync<GameResponse>(JsonHelpers.ReadStringEnums);
         Guid gameId = created!.Id;
 
-        HttpResponseMessage resp = await _client.GetAsync($"/api/game/{gameId}/score");
+        HttpResponseMessage resp = await _client.GetAsync($"{GameEndpoint.PrefixApiRoute}/{gameId}/score");
         resp.EnsureSuccessStatusCode();
 
         GameScoreResponse? score = await resp.Content.ReadFromJsonAsync<GameScoreResponse>(ReadJson);
 
         score.Should().NotBeNull();
-        score!.PlayerScores.Should().HaveCount(2);
+        score.PlayerScores.Should().HaveCount(2);
         score.PlayerScores.Select(p => p.PlayerName).Should().Contain([playerAlice, playerBob,]);
 
         score.Winner.Select(w => w.PlayerName).Should().HaveCount(2);
@@ -182,16 +192,17 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
     {
         GameRequest req = TestFixtures.SimpleGame("ToDelete");
 
-        HttpResponseMessage create = await _client.PostAsync("/api/game/", JsonHelpers.AsStringEnumJson(req));
+        HttpResponseMessage create =
+            await _client.PostAsync($"{GameEndpoint.PrefixApiRoute}/", JsonHelpers.AsStringEnumJson(req));
         create.EnsureSuccessStatusCode();
 
         GameResponse? created = await create.Content.ReadFromJsonAsync<GameResponse>(JsonHelpers.ReadStringEnums);
         Guid id = created!.Id;
 
-        HttpResponseMessage del = await _client.DeleteAsync($"/api/game/{id}");
+        HttpResponseMessage del = await _client.DeleteAsync($"{GameEndpoint.PrefixApiRoute}/{id}");
         del.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        HttpResponseMessage afterDel = await _client.GetAsync($"/api/game/{id}/score");
+        HttpResponseMessage afterDel = await _client.GetAsync($"{GameEndpoint.PrefixApiRoute}/{id}/score");
         afterDel.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

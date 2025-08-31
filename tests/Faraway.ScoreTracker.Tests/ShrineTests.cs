@@ -1,6 +1,4 @@
-﻿// tests/Faraway.ScoreTracker.Tests.Unit/ShrineTests.cs
-
-using Faraway.ScoreTracker.Core.Entities;
+﻿using Faraway.ScoreTracker.Core.Entities;
 using Faraway.ScoreTracker.Core.Enums;
 using FluentAssertions;
 using Xunit;

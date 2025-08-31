@@ -13,7 +13,7 @@ namespace Faraway.ScoreTracker.Api.Endpoints.Game;
 
 public static class GameEndpoint
 {
-    private static readonly string PrefixApiRoute = "/api/game";
+    public static readonly string PrefixApiRoute = "/api/game";
     private const int MaxRegions = 8;
     
     public static IEndpointRouteBuilder MapGames(this IEndpointRouteBuilder app)

@@ -13,7 +13,7 @@ public static class JsonHelpers
         {
             PropertyNameCaseInsensitive = true
         };
-        opts.Converters.Add(new JsonStringEnumConverter()); // <-- Enums als Strings
+        opts.Converters.Add(new JsonStringEnumConverter());
 
         string json = JsonSerializer.Serialize(payload, opts);
         return new StringContent(json, Encoding.UTF8, "application/json");
