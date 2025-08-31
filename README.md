@@ -1,29 +1,20 @@
-# ScoreTracker – Neue Entities + Contracts + Create-Endpoints
+# Faraway ScoreTracker
 
-## Start
+[![CI](https://github.com/Kantoz/FarawayScoreTracker/actions/workflows/ci.yml/badge.svg)](https://github.com/<ORG_ODER_USER>/FarawayScoreTracker/actions/workflows/ci.yml)
+
+Ein .NET 8 Projekt zur Verwaltung von Spielergebnissen.  
+CI/CD läuft über **GitHub Actions** mit automatischem Docker-Build und Push nach **GitHub Container Registry (GHCR)**.
+
+---
+
+## 🚀 Entwicklung lokal
+
+### Voraussetzungen
+- [.NET SDK 8.0](https://dotnet.microsoft.com/download)
+- [Docker](https://docs.docker.com/get-docker/)
+
+### Build & Test
 ```bash
-dotnet build
-dotnet run --project src/ScoreTracker.Api
-```
-
-## Swagger
-In Development automatisch aktiv.
-
-## Beispiel-Requests (HTTPie)
-### Spieler anlegen
-http POST :5078/players name="Alice"
-
-### Region erstellen
-http POST :5078/regions Nummer:=1 Wert:=Tag HinweisVorhanden:=true Farbe:=Blau Wonders:='["Stein"]' Conditions:='["Stein"]' ScoringType:=PerHint Points:=2 Color1:=null Color2:=null
-
-### Heiligtum erstellen
-http POST :5078/shrines HinweisVorhanden:=false Wonders:='["Chimaere"]' Farbe:=Grau Wert:=Nacht ScoringType:=Flat Points:=3 Color1:=null Color2:=null
-
-### Region dem Spieler zuweisen
-http POST :5078/players/{playerId}/regions RegionId:={regionId} IsFaceUp:=true
-
-### Heiligtum dem Spieler zuweisen
-http POST :5078/players/{playerId}/shrines ShrineId:={shrineId}
-
-### Score berechnen
-http :5078/players/{playerId}/score
+dotnet restore Faraway.ScoreTracker.sln
+dotnet build Faraway.ScoreTracker.sln -c Release
+dotnet test tests/Faraway.ScoreTracker.Tests/Faraway.ScoreTracker.Tests.csproj -c Release
