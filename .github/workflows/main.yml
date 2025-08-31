@@ -12,10 +12,11 @@ jobs:
 
     permissions:
       contents: read
-      packages: read
+      packages: write
 
     env:
       DOTNET_VERSION: "8.0.x"
+      REGISTRY: ghcr.io
       IMAGE_NAME: scoretracker
       DOCKERFILE_PATH: ./Dockerfile
       CONTEXT_PATH: ./
@@ -56,19 +57,45 @@ jobs:
             **/TestResults/**/*.xml
           if-no-files-found: ignore
 
-      - name: Set image tags
-        id: tags
+      - name: Prepare image tags
+        id: prep
+        shell: bash
         run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          DATE=$(date -u +%Y%m%d)
-          FIRST_TAG="${{ env.IMAGE_NAME }}:${DATE}-${SHORT_SHA}"
-          ALL_TAGS="${FIRST_TAG},${{ env.IMAGE_NAME }}:${SHORT_SHA}"
-          echo "first_tag=$FIRST_TAG" >> "$GITHUB_OUTPUT"
-          echo "tags=$ALL_TAGS" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          DATE="$(date -u +%Y%m%d)"
+          IMAGE="${{ env.REGISTRY }}/${OWNER_LC}/${{ env.IMAGE_NAME }}"
+          TAG_DATE_SHA="${DATE}-${SHORT_SHA}"
+          echo "owner_lc=$OWNER_LC"           >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE"                 >> "$GITHUB_OUTPUT"
+          echo "tag_date_sha=$TAG_DATE_SHA"   >> "$GITHUB_OUTPUT"
+          echo "tag_sha=$SHORT_SHA"           >> "$GITHUB_OUTPUT"
+          echo "tag_latest=latest"            >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker image (no push)
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
         run: |
           docker build \
             --file "${{ env.DOCKERFILE_PATH }}" \
-            --tag "${{ steps.tags.outputs.first_tag }}" \
+            --tag "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_date_sha }}" \
+            --tag "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_latest }}" \
             "${{ env.CONTEXT_PATH }}"
+
+      - name: Tag with short SHA
+        run: |
+          docker tag \
+            "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_date_sha }}" \
+            "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_sha }}"
+
+      - name: Push all tags to GHCR
+        run: |
+          docker push "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_date_sha }}"
+          docker push "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_sha }}"
+          docker push "${{ steps.prep.outputs.image }}:${{ steps.prep.outputs.tag_latest }}"
