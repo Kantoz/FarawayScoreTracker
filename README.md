@@ -25,18 +25,18 @@ Es kombiniert moderne Softwareentwicklungspraktiken mit einem durchgängigen Set
 - [Docker](https://docs.docker.com/get-docker/)
 
 ### Build & Test lokal
-```bash
+```powershell
 dotnet restore Faraway.ScoreTracker.sln
 dotnet build Faraway.ScoreTracker.sln -c Release
 dotnet test tests/Faraway.ScoreTracker.Tests/Faraway.ScoreTracker.Tests.csproj -c Release
 ```
 ### Build & Test lokal (Docker)
-```bash
+```powershell
 ./builddocker.bat
 ```
 ---
 ## 📂 Projektstruktur
-```bash
+```
 src/
   Faraway.ScoreTracker.Api/            # ASP.NET Core API
   Faraway.ScoreTracker.Core/           # Domänenlogik
