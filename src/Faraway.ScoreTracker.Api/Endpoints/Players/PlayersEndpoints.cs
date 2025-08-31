@@ -10,13 +10,15 @@ namespace Faraway.ScoreTracker.Api.Endpoints.Players;
 
 public static class PlayersEndpoints
 {
+    private static readonly string PrefixApiRoute = "/api/player";
+
     public static IEndpointRouteBuilder MapPlayers(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/player").WithTags("Player");
+        RouteGroupBuilder group = app.MapGroup(PrefixApiRoute).WithTags("Player");
 
         group.MapGet("/", GetAllPlayer)
             .Produces<IEnumerable<PlayerResponse>>();
-        
+
         group.MapGet("/{playerId:guid}", GetPlayer)
             .WithName("GetPlayer")
             .Produces<PlayerResponse>()
@@ -29,29 +31,33 @@ public static class PlayersEndpoints
         group.MapGet("/{playerId:guid}/score", GetScore)
             .Produces<ScoreResponse>()
             .Produces(StatusCodes.Status404NotFound);
+
         return app;
     }
 
     private static async Task<Results<Ok<PlayerResponse>, NotFound>> GetPlayer(
-        Guid playerId, IPlayerRepository repository)
+        Guid playerId,
+        IPlayerRepository repository)
     {
-        var player = await repository.GetAsync(playerId);
+        Player? player = await repository.GetAsync(playerId);
         return player is null
             ? TypedResults.NotFound()
             : TypedResults.Ok(player.Adapt<PlayerResponse>());
     }
-    
-    private static async Task<NoContent> DeletePlayer(Guid playerId,  ScoreTrackerDbContext db)
+
+    private static async Task<NoContent> DeletePlayer(Guid playerId, ScoreTrackerDbContext db)
     {
         await db.Players
             .Where(p => p.Id == playerId)
             .ExecuteDeleteAsync();
+
         return TypedResults.NoContent();
     }
 
     private static async Task<Ok<IEnumerable<PlayerResponse>>> GetAllPlayer(IPlayerRepository repo)
     {
-        IEnumerable<PlayerResponse> players = (await repo.GetAllAsync()).Select(CreatePlayerResponse);
+        IEnumerable<Player> allPlayers = await repo.GetAllAsync();
+        IEnumerable<PlayerResponse> players = allPlayers.Select(CreatePlayerResponse);
         return TypedResults.Ok(players);
     }
 
@@ -61,29 +67,27 @@ public static class PlayersEndpoints
         {
             Id = player.Id,
             Name = player.Name,
-            Regions = CreateRegion(player),
-            Shrines = CreateShrines(player),
+            Regions = CreateRegion(player).ToList(),
+            Shrines = CreateShrines(player).ToList(),
         };
     }
 
     private static IEnumerable<ShrineResponse> CreateShrines(Player player)
     {
-        return player.Shrines.Select(s =>
-            new ShrineResponse
-            {
-                Area = s.Area,
-                HasHint = s.HasHint,
-                Wonders = s.Wonders,
-                Value = s.Value,
-                Id = s.Id,
-                ScoringRule = s.ScoringRule.Adapt<ScoringRuleResponse>(),
-            }
-        );
+        return player.Shrines.Select(s => new ShrineResponse
+        {
+            Area = s.Area,
+            HasHint = s.HasHint,
+            Wonders = s.Wonders,
+            Value = s.Value,
+            Id = s.Id,
+            ScoringRule = s.ScoringRule.Adapt<ScoringRuleResponse>(),
+        });
     }
 
-    private static IEnumerable<RegionResponse> CreateRegion(Player p)
+    private static IEnumerable<RegionResponse> CreateRegion(Player player)
     {
-        return p.Regions.Select(r => new RegionResponse
+        return player.Regions.Select(r => new RegionResponse
         {
             Area = r.Region.Area,
             HasHint = r.Region.HasHint,
@@ -101,7 +105,7 @@ public static class PlayersEndpoints
         IPlayerRepository repo,
         Guid playerId)
     {
-        Player? player = (await repo.GetAsync(playerId)).Adapt<Player?>();
+        Player? player = await repo.GetAsync(playerId);
         if (player is null)
         {
             return TypedResults.NotFound();

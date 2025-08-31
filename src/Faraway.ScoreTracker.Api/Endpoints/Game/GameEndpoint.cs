@@ -13,20 +13,23 @@ namespace Faraway.ScoreTracker.Api.Endpoints.Game;
 
 public static class GameEndpoint
 {
+    private static readonly string PrefixApiRoute = "/api/game";
+    private const int MaxRegions = 8;
+    
     public static IEndpointRouteBuilder MapGames(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/game").WithTags("Game");
+        RouteGroupBuilder group = app.MapGroup(PrefixApiRoute).WithTags("Game");
 
         group.MapPost("/", CreateGame)
-            .Produces<CreateIdResponse>(StatusCodes.Status201Created)
+            .Produces<GameResponse>(StatusCodes.Status201Created)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapGet("/", GetAllGames)
             .Produces<IEnumerable<GameResponse>>();
 
-        group.MapDelete("/", DeleteGame)
+        group.MapDelete("/{gameId:guid}", DeleteGame)
             .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status204NoContent);
+            .Produces(StatusCodes.Status404NotFound);
 
         group.MapGet("/{gameId:guid}/score", GetScore)
             .Produces<GameScoreResponse>()
@@ -35,24 +38,36 @@ public static class GameEndpoint
         return app;
     }
 
-    private static async Task<Results<Ok<GameScoreResponse>, NotFound>> GetScore(Guid gameId,
-        IGameRepository repo)
+    private static async Task<Results<Ok<GameScoreResponse>, NotFound>> GetScore(
+        Guid gameId,
+        IGameRepository repo,
+        CancellationToken ct = default)
     {
-        Core.Entities.Game? game = await repo.GetAsync(gameId);
-
+        Core.Entities.Game? game = await repo.GetAsync(gameId, ct);
         if (game is null)
         {
             return TypedResults.NotFound();
         }
 
-        IEnumerable<PlayerGameScoreResponse> playerScores = game.Players.Select(p => new PlayerGameScoreResponse
+        PlayerGameScoreResponse[] playerScores = game.Players
+            .Select(p => new PlayerGameScoreResponse
+            {
+                Points = p.ComputePlayerScore(),
+                PlayerName = p.Name,
+            })
+            .ToArray();
+
+        if (playerScores.Length == 0)
         {
-            Points = p.ComputePlayerScore(),
-            PlayerName = p.Name,
-        }).ToArray();
+            return TypedResults.Ok(new GameScoreResponse
+            {
+                PlayerScores = [],
+                Winner = [],
+            });
+        }
 
         int maxPoints = playerScores.Max(ps => ps.Points);
-        
+
         return TypedResults.Ok(new GameScoreResponse
         {
             PlayerScores = playerScores,
@@ -60,32 +75,37 @@ public static class GameEndpoint
         });
     }
 
-    private static async Task<Results<NoContent, NotFound>> DeleteGame(Guid gameId, ScoreTrackerDbContext db)
+    private static async Task<Results<NoContent, NotFound>> DeleteGame(
+        Guid gameId,
+        ScoreTrackerDbContext db,
+        CancellationToken ct = default)
     {
-        await db.Games.Where(g => g.Id == gameId).ExecuteDeleteAsync();
-
-        return TypedResults.NoContent();
+        int gamesToDelete = await db.Games.Where(g => g.Id == gameId).ExecuteDeleteAsync(ct);
+        return gamesToDelete == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }
 
-    private static async Task<Ok<IEnumerable<GameResponse>>> GetAllGames(ScoreTrackerDbContext db)
+    private static async Task<Ok<IEnumerable<GameResponse>>> GetAllGames(
+        ScoreTrackerDbContext db,
+        CancellationToken ct = default)
     {
-        var games = await db.Games
+        List<GameRecord> games = await db.Games
+            .AsNoTracking()
             .Include(g => g.Players)
             .ThenInclude(p => p.PlayerRegions)
             .ThenInclude(pr => pr.Region)
+            .ThenInclude(r => r.ScoringRule)
             .Include(g => g.Players)
             .ThenInclude(p => p.Shrines)
             .ThenInclude(s => s.ScoringRule)
-            .Include(g => g.Players)
-            .ThenInclude(p => p.PlayerRegions)
-            .ThenInclude(pr => pr.Region.ScoringRule)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         return TypedResults.Ok(games.Adapt<IEnumerable<GameResponse>>());
     }
 
     private static async Task<Results<Created<GameResponse>, BadRequest<ErrorResponse>>> CreateGame(
-        ScoreTrackerDbContext db, GameRequest req, CancellationToken ct)
+        ScoreTrackerDbContext db,
+        GameRequest req,
+        CancellationToken ct)
     {
         if (req.Players.Count() is < 1 or > 6)
         {
@@ -99,104 +119,137 @@ public static class GameEndpoint
         };
         db.Games.Add(game);
 
-        List<PlayerRecord> newPlayers = [];
+        string[] playerRequestNames = req.Players.Select(p => p.Name).ToArray();
+        if (playerRequestNames.Any(string.IsNullOrWhiteSpace))
+        {
+            return TypedResults.BadRequest(new ErrorResponse("Jeder Spieler benötigt einen Namen."));
+        }
 
+        string[] playersWithMaxRegions = req.Players
+            .Where(p => p.Regions.Count() > MaxRegions)
+            .Select(p => p.Name)
+            .ToArray();
+
+        if (playersWithMaxRegions.Any())
+        {
+            return TypedResults.BadRequest(
+                new ErrorResponse(
+                    $"Spieler '{string.Join(", ", playersWithMaxRegions)}': maximal {MaxRegions} Regionen."));
+        }
+
+        List<PlayerRecord> newPlayers = new();
         foreach (PlayerRequest playerRequest in req.Players)
         {
-            if (string.IsNullOrWhiteSpace(playerRequest.Name))
-            {
-                return TypedResults.BadRequest(new ErrorResponse("Jeder Spieler benötigt einen Namen."));
-            }
-
-            PlayerRecord player = new()
-            {
-                Id = Guid.NewGuid(),
-                Name = playerRequest.Name,
-                PlayerRegions = [],
-                Shrines = [],
-            };
-
-            int pos = 0;
-            foreach (RegionRequest regionRequest in playerRequest.Regions)
-            {
-                pos++;
-                if (pos > 8)
-                {
-                    return TypedResults.BadRequest(
-                        new ErrorResponse($"Spieler '{playerRequest.Name}': maximal 8 Regionen."));
-                }
-
-                RegionRecord region = new()
-                {
-                    Id = Guid.NewGuid(),
-                    Number = regionRequest.Number,
-                    Value = regionRequest.Value,
-                    HasHint = regionRequest.HasHint,
-                    Area = regionRequest.Area,
-                    Wonders = regionRequest.Wonders.ToList(),
-                    Condition = regionRequest.Condition.ToList(),
-                    ScoringRule = new ScoringRuleRecord
-                    {
-                        Type = regionRequest.ScoringRule.Type,
-                        Points = regionRequest.ScoringRule.Points,
-                        ColorOne = regionRequest.ScoringRule.ColorOne,
-                        ColorTwo = regionRequest.ScoringRule.ColorTwo,
-                    },
-                };
-
-                player.PlayerRegions.Add(new PlayerRegionRecord
-                {
-                    Id = Guid.NewGuid(),
-                    PlayerId = player.Id,
-                    Region = region,
-                    IsFaceUp = true,
-                    Position = pos,
-                });
-            }
-
-            foreach (ShrineRequest s in playerRequest.Shrines)
-            {
-                ShrineRecord shrine = new ShrineRecord
-                {
-                    Id = Guid.NewGuid(),
-                    PlayerId = player.Id,
-                    HasHint = s.HasHint,
-                    Area = s.Area,
-                    Value = s.Value,
-                    ScoringRule = new ScoringRuleRecord
-                    {
-                        Type = s.ScoringRule.Type,
-                        Points = s.ScoringRule.Points,
-                        ColorOne = s.ScoringRule.ColorOne,
-                        ColorTwo = s.ScoringRule.ColorTwo,
-                    },
-                    Wonders = s.Wonders,
-                };
-
-                player.Shrines.Add(shrine);
-            }
-
-            newPlayers.Add(player);
+            newPlayers.Add(CreatePlayerRecord(playerRequest));
         }
 
-        db.Players.AddRange(newPlayers);
-
-        foreach (PlayerRecord p in newPlayers)
+        foreach (PlayerRecord playerRecord in newPlayers)
         {
-            game.Players.Add(p);
+            game.Players.Add(playerRecord);
         }
 
         db.Players.AddRange(newPlayers);
-        
-        
+
         try
         {
             await db.SaveChangesAsync(ct);
-            return TypedResults.Created($"/games/{game.Id}", game.Adapt<GameResponse>());
+            return TypedResults.Created($"{PrefixApiRoute}/{game.Id}", game.Adapt<GameResponse>());
         }
         catch (DbUpdateException ex) when (DbHelper.IsUnique(ex))
         {
             return TypedResults.BadRequest(new ErrorResponse("Spielername bereits vergeben."));
         }
+    }
+
+    private static PlayerRecord CreatePlayerRecord(PlayerRequest playerRequest)
+    {
+        PlayerRecord player = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = playerRequest.Name,
+            PlayerRegions = [],
+            Shrines = [],
+        };
+
+        int pos = 0;
+        foreach (RegionRequest regionRequest in playerRequest.Regions)
+        {
+            pos++;
+            RegionRecord region = CreateRegionRecord(regionRequest);
+
+            player.PlayerRegions.Add(CreatePlayerRegionRecord(player, region, pos));
+        }
+
+        foreach (ShrineRequest s in playerRequest.Shrines)
+        {
+            ShrineRecord shrine = CreateShrineRecord(player, s);
+
+            player.Shrines.Add(shrine);
+        }
+
+        return player;
+    }
+
+    private static ShrineRecord CreateShrineRecord(PlayerRecord player, ShrineRequest s)
+    {
+        return new ShrineRecord
+        {
+            Id = Guid.NewGuid(),
+            PlayerId = player.Id,
+            HasHint = s.HasHint,
+            Area = s.Area,
+            Value = s.Value,
+            ScoringRule = CreateScoringRule(s),
+            Wonders = s.Wonders,
+        };
+    }
+
+    private static ScoringRuleRecord CreateScoringRule(ShrineRequest s)
+    {
+        return new ScoringRuleRecord
+        {
+            Type = s.ScoringRule.Type,
+            Points = s.ScoringRule.Points,
+            ColorOne = s.ScoringRule.ColorOne,
+            ColorTwo = s.ScoringRule.ColorTwo,
+        };
+    }
+
+    private static PlayerRegionRecord CreatePlayerRegionRecord(PlayerRecord player, RegionRecord region, int pos)
+    {
+        return new PlayerRegionRecord
+        {
+            Id = Guid.NewGuid(),
+            PlayerId = player.Id,
+            Region = region,
+            IsFaceUp = true,
+            Position = pos,
+        };
+    }
+
+    private static RegionRecord CreateRegionRecord(RegionRequest regionRequest)
+    {
+        return new RegionRecord
+        {
+            Id = Guid.NewGuid(),
+            Number = regionRequest.Number,
+            Value = regionRequest.Value,
+            HasHint = regionRequest.HasHint,
+            Area = regionRequest.Area,
+            Wonders = regionRequest.Wonders.ToList(),
+            Condition = regionRequest.Condition.ToList(),
+            ScoringRule = CreateScoringRuleRecord(regionRequest),
+        };
+    }
+
+    private static ScoringRuleRecord CreateScoringRuleRecord(RegionRequest regionRequest)
+    {
+        return new ScoringRuleRecord
+        {
+            Type = regionRequest.ScoringRule.Type,
+            Points = regionRequest.ScoringRule.Points,
+            ColorOne = regionRequest.ScoringRule.ColorOne,
+            ColorTwo = regionRequest.ScoringRule.ColorTwo,
+        };
     }
 }

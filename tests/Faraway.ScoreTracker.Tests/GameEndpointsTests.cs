@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Faraway.ScoreTracker.Contracts.Errors;
 using Faraway.ScoreTracker.Contracts.Requests;
 using Faraway.ScoreTracker.Contracts.Responses;
+using Faraway.ScoreTracker.Core.Enums;
 using Faraway.ScoreTracker.Infrastructure.Persistence;
 using Faraway.ScoreTracker.Tests.Helper;
 using FluentAssertions;
@@ -112,13 +113,13 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         List<RegionRequest> nineRegions = Enumerable.Range(1, 9).Select(i =>
             new RegionRequest(
                 Number: i,
-                Value: global::Faraway.ScoreTracker.Core.Enums.TimeValue.Tag,
+                TimeValue.Tag,
                 HasHint: false,
-                Area: global::Faraway.ScoreTracker.Core.Enums.Color.Gelb,
+                Color.Gelb,
                 Wonders: [],
                 Condition: [],
                 ScoringRule: new ScoringRuleRequest(
-                    Type: global::Faraway.ScoreTracker.Core.Enums.ScoringType.Flat,
+                    ScoringType.Flat,
                     Points: 1,
                     ColorOne: null,
                     ColorTwo: null
@@ -187,8 +188,7 @@ public class GameEndpointsTests(TestWebApplicationFactory factory)
         GameResponse? created = await create.Content.ReadFromJsonAsync<GameResponse>(JsonHelpers.ReadStringEnums);
         Guid id = created!.Id;
 
-        // Achtung: MapDelete("/") -> gameId aus Query
-        HttpResponseMessage del = await _client.DeleteAsync($"/api/game?gameId={id}");
+        HttpResponseMessage del = await _client.DeleteAsync($"/api/game/{id}");
         del.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         HttpResponseMessage afterDel = await _client.GetAsync($"/api/game/{id}/score");
